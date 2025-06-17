@@ -153,7 +153,7 @@ em.interactive_ca(rule=110, size=200)
 
 The `examples/` directory contains:
 
-- ...
+- **increment.py** - trains a simple rule to map an integer `x` to `x+1`.
 
 ## Contributing
 
