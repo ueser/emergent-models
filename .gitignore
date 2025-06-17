@@ -20,6 +20,7 @@ parts/
 sdist/
 var/
 wheels/
+pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
@@ -27,6 +28,8 @@ share/python-wheels/
 MANIFEST
 
 # PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
 *.manifest
 *.spec
 
@@ -47,7 +50,6 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
-cover/
 
 # Translations
 *.mo
@@ -68,16 +70,12 @@ instance/
 
 # Sphinx documentation
 docs/_build/
-docs/build/
-docs/source/api/generated/
 
 # PyBuilder
-.pybuilder/
 target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
-*.ipynb_checkpoints/
 
 # IPython
 profile_default/
@@ -87,15 +85,13 @@ ipython_config.py
 .python-version
 
 # pipenv
-Pipfile.lock
+#   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
+#   However, in case of collaboration, if having platform-specific dependencies or dependencies
+#   having no cross-platform support, pipenv may install dependencies that don't work, or not
+#   install all needed dependencies.
+#Pipfile.lock
 
-# poetry
-poetry.lock
-
-# pdm
-.pdm.toml
-
-# PEP 582
+# PEP 582; used by e.g. github.com/David-OConnor/pyflow
 __pypackages__/
 
 # Celery stuff
@@ -132,69 +128,34 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# pytype static type analyzer
-.pytype/
+# Poetry
+poetry.lock
 
-# Cython debug symbols
-cython_debug/
-
-# VS Code
-.vscode/
-*.code-workspace
-
-# PyCharm
-.idea/
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-
-# Windows
-Thumbs.db
-Thumbs.db:encryptable
-ehthumbs.db
-ehthumbs_vista.db
-*.stackdump
-[Dd]esktop.ini
-
-# Linux
-*~
-.fuse_hidden*
-.directory
-.Trash-*
-.nfs*
-
-# Project specific
-*.ca  # Cellular automata save files
-*.genome  # Genome save files
-*.checkpoint
-profile.stats
-.benchmarks/
-output/
+# Training artifacts
+checkpoints/
 results/
-experiments/
-logs/
-*.log
-*.out
-*.err
+outputs/
+models/
+*.pkl
+# Exclude specific result files but allow source JSON configs
+/results/*.json
+/checkpoints/*.json
+/outputs/*.json
+/models/*.json
+*.png
+*.gif
+*.mp4
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Temporary files
 *.tmp
 *.temp
-*.swp
-*.swo
-*.bak
-.~*
-
-# Data files (but keep example data)
-# data/* - commented out to allow source data modules
-!data/examples/
-
-# Model checkpoints (but keep pretrained)
-checkpoints/*
-!checkpoints/pretrained/
-
-# Documentation build
-docs/_static/
-docs/_templates/

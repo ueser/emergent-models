@@ -16,8 +16,6 @@ maintainers = [
     {name = "Umut Eser", email = "umuteser@gmail.com"},
 ]
 requires-python = ">=3.13"
-dependencies = [
-]
 
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -42,6 +40,7 @@ dependencies = [
     "scipy>=1.7.0",
     "matplotlib>=3.3.0",
     "tqdm>=4.62.0",
+    "numba>=0.55.0",
 ]
 
 [project.optional-dependencies]
@@ -75,7 +74,30 @@ visualization = [
     "seaborn>=0.11.2",
 ]
 all = [
-    "emergent-models[dev,docs,gpu,torch,visualization]",
+    # Dev dependencies
+    "pytest>=7.0.0",
+    "pytest-cov>=3.0.0",
+    "pytest-xdist>=2.5.0",
+    "black>=22.0.0",
+    "isort>=5.10.0",
+    "flake8>=4.0.0",
+    "mypy>=0.950",
+    "pre-commit>=2.17.0",
+    # Docs dependencies
+    "sphinx>=4.5.0",
+    "sphinx-rtd-theme>=1.0.0",
+    "sphinx-autodoc-typehints>=1.18.0",
+    "nbsphinx>=0.8.8",
+    # GPU dependencies
+    "cupy>=10.0.0",
+    "numba>=0.55.0",
+    # Torch dependencies
+    "torch>=1.10.0",
+    # Visualization dependencies
+    "pillow>=9.0.0",
+    "imageio>=2.16.0",
+    "plotly>=5.6.0",
+    "seaborn>=0.11.2",
 ]
 
 [tool.setuptools]
