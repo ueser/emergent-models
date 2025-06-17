@@ -41,7 +41,6 @@ from . import optimizers
 from . import losses
 from . import encoders
 from . import utils
-from . import models
 
 __all__ = [
     # Core
@@ -66,8 +65,9 @@ __all__ = [
     'visualize_evolution', 'save_genome', 'load_genome',
     
     # Modules
-    'rules', 'optimizers', 'losses', 'encoders', 'utils', 'models',
+    'rules', 'optimizers', 'losses', 'encoders', 'utils',
     
     # Version
     '__version__',
 ]
+
