@@ -1,5 +1,6 @@
 from .base import CATransform
-from .binary import BinaryEncoder
+from .binary import BinaryEncoder, EM43BinaryEncoder, int_to_binary_states, binary_states_to_int
 from .position import PositionEncoder
 
-__all__ = ["CATransform", "BinaryEncoder", "PositionEncoder"]
+__all__ = ["CATransform", "BinaryEncoder", "EM43BinaryEncoder", "PositionEncoder",
+           "int_to_binary_states", "binary_states_to_int"]
