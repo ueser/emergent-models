@@ -30,9 +30,13 @@ class EM43BinaryEncoder(CATransform):
     - 1 bits -> input state (configurable, default 2 for red)
 
     Example: 9 -> binary 1001 -> states [2, 0, 0, 2] (with input_state=2)
+
+    This encoder handles the complete workflow:
+    1. encode_input() - creates initial CA space with programme + encoded input
+    2. decode_output() - extracts output from final CA space
     """
 
-    def __init__(self, bit_width: int = 8, input_state: int = 2, pad_left: bool = True):
+    def __init__(self, bit_width: int = 8, input_state: int = 2, separator_state: int = 3):
         """
         Parameters
         ----------
@@ -40,12 +44,12 @@ class EM43BinaryEncoder(CATransform):
             Number of bits to use for binary representation
         input_state : int
             CA state to use for '1' bits (default 2 = red beacon)
-        pad_left : bool
-            Whether to pad with zeros on the left (MSB first) or right
+        separator_state : int
+            CA state to use for separators (default 3 = blue)
         """
         self.bit_width = bit_width
         self.input_state = input_state
-        self.pad_left = pad_left
+        self.separator_state = separator_state
 
     def encode_number(self, number: int) -> np.ndarray:
         """Convert a single number to binary CA states"""
@@ -78,8 +82,109 @@ class EM43BinaryEncoder(CATransform):
 
         return int(binary_str, 2) if binary_str else 0
 
+    def encode_input(self, programme: np.ndarray, input_value: int, window_size: int = 200) -> CASpace:
+        """
+        Create initial CA space with programme and encoded input.
+
+        Tape structure: [programme] BB [binary_input] 0...
+
+        Parameters
+        ----------
+        programme : np.ndarray
+            The CA programme
+        input_value : int
+            Input number to encode
+        window_size : int
+            Total size of the CA space
+
+        Returns
+        -------
+        CASpace
+            Initial CA space ready for simulation
+        """
+        # Encode input as binary states
+        input_binary = self.encode_number(input_value)
+
+        # Calculate required space
+        L = len(programme)
+        required_size = L + 2 + self.bit_width  # programme + separator + input
+
+        if required_size > window_size:
+            raise ValueError(f"Window size {window_size} too small for programme length {L} and bit width {self.bit_width}")
+
+        # Create space
+        space = Space1D(window_size, n_states=4)
+
+        # Set programme
+        space.data[:L] = programme
+
+        # Set separator (BB)
+        space.data[L:L+2] = self.separator_state
+
+        # Set binary input
+        space.data[L+2:L+2+self.bit_width] = input_binary
+
+        # Rest remains zeros
+        return space
+
+    def decode_output(self, final_space: CASpace, programme_length: int) -> int:
+        """
+        Decode output from final CA space.
+
+        Looks for binary patterns after the input area.
+
+        Parameters
+        ----------
+        final_space : CASpace
+            Final CA space after simulation
+        programme_length : int
+            Length of the programme (to know where input/output areas are)
+
+        Returns
+        -------
+        int
+            Decoded output value, or -1 if no valid pattern found
+        """
+        if not isinstance(final_space, Space1D):
+            return -1
+
+        data = final_space.data
+        L = programme_length
+
+        # Input area is at L+2 to L+2+bit_width
+        input_end = L + 2 + self.bit_width
+
+        # Search for output pattern after the input
+        for start_pos in range(input_end, len(data) - self.bit_width + 1):
+            # Check if we have a valid bit pattern here
+            binary_val = 0
+            valid_pattern = True
+            has_any_bits = False
+
+            # Check if this looks like a valid binary pattern
+            for bit_pos in range(self.bit_width):
+                if start_pos + bit_pos >= len(data):
+                    valid_pattern = False
+                    break
+
+                cell_state = data[start_pos + bit_pos]
+                if cell_state == self.input_state:
+                    binary_val |= (1 << (self.bit_width - 1 - bit_pos))
+                    has_any_bits = True
+                elif cell_state == self.separator_state:  # Blue cells break the pattern
+                    valid_pattern = False
+                    break
+                # State 0 and 1 are allowed in binary patterns
+
+            # Only accept patterns that have at least one bit set
+            if valid_pattern and has_any_bits and binary_val > 0:
+                return binary_val
+
+        # If no clear output pattern found, return -1
+        return -1
+
     def __call__(self, data: Union[int, List[int]]) -> CASpace:
-        """Encode integer(s) to binary CA space"""
+        """Encode integer(s) to binary CA space (legacy method)"""
         if isinstance(data, int):
             encoded = self.encode_number(data)
             space = Space1D(size=len(encoded), n_states=4)

@@ -23,7 +23,6 @@ except ImportError:
 
 from ..core.space import CASpace, Space1D
 from ..rules.em43 import EM43Genome, lut_idx
-from ..encoders.binary import int_to_binary_states, binary_states_to_int
 from .base import Simulator
 
 
@@ -145,130 +144,6 @@ if NUMBA_AVAILABLE:
         
         return output
 
-    @nb.njit(cache=True)
-    def _simulate_batch_binary_numba(
-        rule_array: np.ndarray,
-        programme: np.ndarray,
-        inputs: np.ndarray,
-        window: int,
-        max_steps: int,
-        halt_thresh: float,
-        bit_width: int,
-        input_state: int
-    ) -> np.ndarray:
-        """
-        Numba-accelerated binary simulation for EM-4/3.
-
-        Tape structure: [programme] BB [binary_input] 0...
-        """
-        L = programme.shape[0]
-        B = inputs.shape[0]
-        N = window
-
-        # Initialize state arrays
-        state = np.zeros((B, N), np.uint8)
-        halted = np.zeros(B, np.bool_)
-        frozen = np.zeros_like(state)
-        output = np.full(B, -10, np.int32)
-
-        # Setup initial tape for each batch item
-        for b in range(B):
-            # Write programme
-            for j in range(L):
-                state[b, j] = programme[j]
-
-            # Write separator (BB)
-            state[b, L] = 3      # Blue
-            state[b, L + 1] = 3  # Blue
-
-            # Write binary input: convert number to binary states
-            input_num = inputs[b]
-            for bit_pos in range(bit_width):
-                bit_val = (input_num >> (bit_width - 1 - bit_pos)) & 1
-                if bit_val == 1:
-                    state[b, L + 2 + bit_pos] = input_state
-                # 0 bits remain as state 0
-
-        # Main simulation loop
-        for step in range(max_steps):
-            active_any = False
-
-            for b in range(B):
-                if halted[b]:
-                    continue
-
-                active_any = True
-
-                # Apply CA rules
-                next_state = np.zeros(N, np.uint8)
-
-                # Boundary cells stay 0
-                next_state[0] = 0
-                next_state[N-1] = 0
-
-                # Apply rules to interior cells
-                for x in range(1, N - 1):
-                    left = state[b, x - 1]
-                    center = state[b, x]
-                    right = state[b, x + 1]
-
-                    # Lookup table index
-                    idx = (left << 4) | (center << 2) | right
-                    next_state[x] = rule_array[idx]
-
-                state[b] = next_state
-
-                # Check halting condition
-                live_count = 0
-                blue_count = 0
-
-                for x in range(N):
-                    cell_val = next_state[x]
-                    if cell_val != 0:
-                        live_count += 1
-                        if cell_val == 3:  # Blue
-                            blue_count += 1
-
-                # Halt if enough blue cells
-                if live_count > 0 and blue_count / live_count >= halt_thresh:
-                    halted[b] = True
-                    frozen[b] = next_state
-
-            if not active_any:
-                break
-
-        # Decode outputs - look for binary patterns
-        for b in range(B):
-            if not halted[b]:
-                continue
-
-            # Find the rightmost cluster of input_state cells
-            # that could represent a binary number
-            best_result = -1
-
-            # Scan from right to left looking for bit patterns
-            for start_pos in range(N - bit_width, -1, -1):
-                # Check if we have a valid bit pattern here
-                binary_val = 0
-                valid_pattern = True
-
-                for bit_pos in range(bit_width):
-                    cell_state = frozen[b, start_pos + bit_pos]
-                    if cell_state == input_state:
-                        binary_val |= (1 << (bit_width - 1 - bit_pos))
-                    elif cell_state != 0:
-                        # Non-zero, non-input_state cell breaks the pattern
-                        valid_pattern = False
-                        break
-
-                if valid_pattern and binary_val > 0:
-                    best_result = binary_val
-                    break
-
-            output[b] = best_result
-
-        return output
-
 
 def _simulate_batch_numpy(
     rule_array: np.ndarray,
@@ -337,13 +212,10 @@ class NumbaSimulator(Simulator):
     def simulate_batch(
         self,
         genome: EM43Genome,
-        inputs: List[int],
-        use_binary_encoding: bool = False,
-        bit_width: int = 8,
-        input_state: int = 2
+        inputs: List[int]
     ) -> np.ndarray:
         """
-        Simulate a batch of inputs with the given genome.
+        Simulate a batch of inputs with the given genome using positional encoding.
 
         Parameters
         ----------
@@ -351,12 +223,6 @@ class NumbaSimulator(Simulator):
             The genome containing rule and programme
         inputs : List[int]
             List of input values to simulate
-        use_binary_encoding : bool
-            If True, encode inputs as binary patterns instead of positional
-        bit_width : int
-            Number of bits for binary encoding (only used if use_binary_encoding=True)
-        input_state : int
-            CA state to use for '1' bits in binary encoding (default 2 = red)
 
         Returns
         -------
@@ -367,22 +233,16 @@ class NumbaSimulator(Simulator):
         programme = genome.programme
         inputs_array = np.asarray(inputs, dtype=np.int64)
 
-        if use_binary_encoding:
-            return self._simulate_batch_binary(
+        if self.use_numba:
+            return _simulate_batch_numba(
                 rule_array, programme, inputs_array,
-                bit_width, input_state
+                self.window, self.max_steps, self.halt_thresh
             )
         else:
-            if self.use_numba:
-                return _simulate_batch_numba(
-                    rule_array, programme, inputs_array,
-                    self.window, self.max_steps, self.halt_thresh
-                )
-            else:
-                return _simulate_batch_numpy(
-                    rule_array, programme, inputs_array,
-                    self.window, self.max_steps, self.halt_thresh
-                )
+            return _simulate_batch_numpy(
+                rule_array, programme, inputs_array,
+                self.window, self.max_steps, self.halt_thresh
+            )
     
     def forward(self, genome, initial_state, halting_condition=None):
         """Single simulation (for compatibility with base class)"""
@@ -401,178 +261,60 @@ class NumbaSimulator(Simulator):
         
         return initial_state.clone()
 
-    def _simulate_batch_binary(
-        self,
-        rule_array: np.ndarray,
-        programme: np.ndarray,
-        inputs: np.ndarray,
-        bit_width: int,
-        input_state: int
-    ) -> np.ndarray:
+    def simulate_spaces(self, genome: EM43Genome, initial_spaces: List[CASpace]) -> List[CASpace]:
         """
-        Simulate batch with binary encoding of inputs.
+        Simulate a batch of initial CA spaces with the given genome.
+        This is the core simulation method that is encoder-agnostic.
 
-        Instead of positional encoding (0^n R), uses binary encoding where
-        each input number is converted to binary and 1-bits become input_state.
+        Parameters
+        ----------
+        genome : EM43Genome
+            The genome containing rule and programme
+        initial_spaces : List[CASpace]
+            List of initial CA spaces to simulate
 
-        Tape structure: [programme] BB [binary_input] 0...
+        Returns
+        -------
+        List[CASpace]
+            List of final CA spaces after simulation
         """
-        if self.use_numba:
-            return _simulate_batch_binary_numba(
-                rule_array, programme, inputs,
-                self.window, self.max_steps, self.halt_thresh,
-                bit_width, input_state
-            )
-        else:
-            # Fallback NumPy implementation
-            B = len(inputs)
-            outputs = np.full(B, -10, dtype=np.int32)
+        rule_array = genome.rule.get_rule_array()
+        final_spaces = []
 
-            for b in range(B):
-                # Encode input as binary states
-                input_binary = int_to_binary_states(inputs[b], bit_width, input_state)
+        for space in initial_spaces:
+            if not isinstance(space, Space1D):
+                # For non-1D spaces, return unchanged for now
+                final_spaces.append(space.clone())
+                continue
 
-                # Create tape: programme + separator + binary input
-                L = len(programme)
-                tape_length = L + 2 + bit_width + 50  # Extra space for computation
-
-                if tape_length > self.window:
-                    continue  # Skip if too large
-
-                # Initialize tape
-                tape = np.zeros(tape_length, dtype=np.uint8)
-
-                # Set programme
-                tape[:L] = programme
-
-                # Set separator (BB)
-                tape[L:L+2] = 3
-
-                # Set binary input
-                tape[L+2:L+2+bit_width] = input_binary
-
-                # Simple simulation for binary case
-                current_tape = tape.copy()
-
-                for step in range(self.max_steps):
-                    next_tape = np.zeros_like(current_tape)
-
-                    # Apply CA rules
-                    for i in range(1, len(current_tape) - 1):
-                        left = current_tape[i - 1]
-                        center = current_tape[i]
-                        right = current_tape[i + 1]
-                        idx = (left << 4) | (center << 2) | right
-                        next_tape[i] = rule_array[idx]
-
-                    current_tape = next_tape
-
-                    # Check halting condition
-                    live = np.count_nonzero(current_tape)
-                    blue = np.count_nonzero(current_tape == 3)
-
-                    if live > 0 and blue / live >= self.halt_thresh:
-                        # Try to decode output from final tape
-                        # Look for rightmost cluster of input_state
-                        rightmost_cluster = []
-                        for i in range(len(current_tape) - 1, -1, -1):
-                            if current_tape[i] == input_state:
-                                rightmost_cluster.insert(0, i)
-                            elif len(rightmost_cluster) > 0:
-                                break
-
-                        if len(rightmost_cluster) >= bit_width:
-                            # Extract bit pattern
-                            result_states = current_tape[rightmost_cluster[:bit_width]]
-                            try:
-                                outputs[b] = binary_states_to_int(result_states, input_state)
-                            except:
-                                outputs[b] = -1
-                        break
-
-            return outputs
-
-    def _simulate_batch_binary(
-        self,
-        rule_array: np.ndarray,
-        programme: np.ndarray,
-        inputs: np.ndarray,
-        bit_width: int,
-        input_state: int
-    ) -> np.ndarray:
-        """
-        Simulate batch with binary encoding of inputs.
-
-        Instead of positional encoding (0^n R), uses binary encoding where
-        each input number is converted to binary and 1-bits become input_state.
-
-        Tape structure: [programme] BB [binary_input] 0...
-        """
-        B = len(inputs)
-        outputs = np.full(B, -10, dtype=np.int32)
-
-        for b in range(B):
-            # Encode input as binary states
-            input_binary = int_to_binary_states(inputs[b], bit_width, input_state)
-
-            # Create tape: programme + separator + binary input
-            L = len(programme)
-            tape_length = L + 2 + bit_width + 50  # Extra space for computation
-
-            if tape_length > self.window:
-                continue  # Skip if too large
-
-            # Initialize tape
-            tape = np.zeros(tape_length, dtype=np.uint8)
-
-            # Set programme
-            tape[:L] = programme
-
-            # Set separator (BB)
-            tape[L:L+2] = 3
-
-            # Set binary input
-            tape[L+2:L+2+bit_width] = input_binary
-
-            # Simple simulation for binary case
-            current_tape = tape.copy()
+            # Simulate this space
+            current_data = space.data.copy()
 
             for step in range(self.max_steps):
-                next_tape = np.zeros_like(current_tape)
+                next_data = np.zeros_like(current_data)
 
-                # Apply CA rules
-                for i in range(1, len(current_tape) - 1):
-                    left = current_tape[i - 1]
-                    center = current_tape[i]
-                    right = current_tape[i + 1]
+                # Apply CA rules (boundary cells stay 0)
+                for i in range(1, len(current_data) - 1):
+                    left = current_data[i - 1]
+                    center = current_data[i]
+                    right = current_data[i + 1]
                     idx = (left << 4) | (center << 2) | right
-                    next_tape[i] = rule_array[idx]
+                    next_data[i] = rule_array[idx]
 
-                current_tape = next_tape
+                current_data = next_data
 
                 # Check halting condition
-                live = np.count_nonzero(current_tape)
-                blue = np.count_nonzero(current_tape == 3)
+                live = np.count_nonzero(current_data)
+                blue = np.count_nonzero(current_data == 3)
 
                 if live > 0 and blue / live >= self.halt_thresh:
-                    # Try to decode output from final tape
-                    # Look for patterns that might represent the result
-
-                    # Simple heuristic: find rightmost cluster of input_state
-                    rightmost_cluster = []
-                    for i in range(len(current_tape) - 1, -1, -1):
-                        if current_tape[i] == input_state:
-                            rightmost_cluster.insert(0, i)
-                        elif len(rightmost_cluster) > 0:
-                            break
-
-                    if len(rightmost_cluster) >= bit_width:
-                        # Extract bit pattern
-                        result_states = current_tape[rightmost_cluster[:bit_width]]
-                        try:
-                            outputs[b] = binary_states_to_int(result_states, input_state)
-                        except:
-                            outputs[b] = -1
                     break
 
-        return outputs
+            # Create final space
+            final_space = Space1D(len(current_data), 4, space.device)
+            final_space.data[:] = current_data
+            final_spaces.append(final_space)
+
+        return final_spaces
+
+
