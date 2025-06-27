@@ -1,75 +1,67 @@
 """
-Emergent Models - A PyTorch-like library for cellular automata
+Emergent Models - Component-First Cellular Automata Library
 """
 
 from .__version__ import __version__
 
-# Core imports (like torch.tensor, torch.nn.Module)
-from .core.space import CASpace, Space1D, Space2D
-from .core.module import CAModule
-from .core.genome import Genome
+# New Component-First Architecture
+# Core components
+from .core.state import StateModel
+from .core.space_model import SpaceModel, Tape1D, Grid2D
+from .core.base import Encoder, FitnessFn, Monitor, ConsoleLogger
 
-# Rules (like torch.nn layers)
-from .rules.elementary import ElementaryCA
-from .rules.base import RuleSet
-from .rules.em43 import EM43Rule, EM43Genome
+# Rules and genome
+from .rules.ruleset import RuleSet, create_em43_ruleset, create_elementary_ruleset
+from .rules.programme import Programme, create_random_programme
+from .rules.sanitization import lut_idx
+from .genome import Genome
 
-# Simulators (like torch inference)
-from .simulators.base import Simulator
-from .simulators.sequential import SequentialSimulator
-from .simulators.numba_simulator import NumbaSimulator
+# Encoders
+from .encoders.em43 import Em43Encoder
+from .encoders.new_binary import BinaryEncoder
 
-# Training components (like torch.optim, torch.utils.data)
-from .optimizers.genetic import GAOptimizer
-from .data.dataset import CADataset
-from .data.dataloader import CADataLoader
-from .training.trainer import CATrainer, create_accuracy_validator
+# Simulation
+from .simulation.simulator import Simulator, BatchSimulator
 
-# Loss functions (like torch.nn.functional)
-from .losses.distance import HammingLoss
-from .losses.pattern import PatternMatchLoss
-
-# Encoders (like torchvision.transforms)
-from .encoders.binary import BinaryEncoder
-from .encoders.position import PositionEncoder
-
-# Utilities
-from .utils.visualization import visualize_evolution
+# Training
+from .training.new_fitness import (
+    AbsoluteDifferenceFitness, IncrementFitness, CustomFitness,
+    SparsityPenalizedFitness, ComplexityRewardFitness
+)
+from .training.optimizer import GAOptimizer, RandomSearchOptimizer
+from .training.new_trainer import Trainer
+from .training.monitor import (
+    DetailedMonitor, ProgressMonitor, SilentMonitor,
+    TqdmMonitor, JupyterMonitor, CombinedMonitor
+)
 from .training.checkpointing import save_genome, load_genome
 
-# Convenience imports
-from . import rules
-from . import optimizers
-from . import losses
-from . import encoders
-from . import utils
-
 __all__ = [
-    # Core
-    'CASpace', 'Space1D', 'Space2D', 'CAModule', 'Genome',
-
-    # Rules
-    'RuleSet', 'ElementaryCA', 'EM43Rule', 'EM43Genome',
-
-    # Simulation
-    'Simulator', 'SequentialSimulator', 'NumbaSimulator',
-
-    # Training
-    'GAOptimizer', 'CADataset', 'CADataLoader', 'CATrainer', 'create_accuracy_validator',
-
-    # Losses
-    'HammingLoss', 'PatternMatchLoss',
-
-    # Encoders
-    'BinaryEncoder', 'PositionEncoder',
-
-    # Utils
-    'visualize_evolution', 'save_genome', 'load_genome',
-
-    # Modules
-    'rules', 'optimizers', 'losses', 'encoders', 'utils',
-
     # Version
     '__version__',
+
+    # Core components
+    'StateModel', 'SpaceModel', 'Tape1D', 'Grid2D',
+    'Encoder', 'FitnessFn', 'Monitor', 'ConsoleLogger',
+
+    # Rules and genome
+    'RuleSet', 'create_em43_ruleset', 'create_elementary_ruleset',
+    'Programme', 'create_random_programme', 'lut_idx',
+    'Genome',
+
+    # Encoders
+    'Em43Encoder', 'BinaryEncoder',
+
+    # Simulation
+    'Simulator', 'BatchSimulator',
+
+    # Training
+    'AbsoluteDifferenceFitness', 'IncrementFitness', 'CustomFitness',
+    'SparsityPenalizedFitness', 'ComplexityRewardFitness',
+    'GAOptimizer', 'RandomSearchOptimizer',
+    'Trainer',
+    'DetailedMonitor', 'ProgressMonitor', 'SilentMonitor',
+    'TqdmMonitor', 'JupyterMonitor', 'CombinedMonitor',
+    'save_genome', 'load_genome'
 ]
 

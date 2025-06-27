@@ -1,6 +1,5 @@
-from .base import CATransform
-from .binary import BinaryEncoder, EM43BinaryEncoder, int_to_binary_states, binary_states_to_int
-from .position import PositionEncoder, EM43PositionalEncoder
+# New Component-First Architecture
+from .em43 import Em43Encoder
+from .new_binary import BinaryEncoder
 
-__all__ = ["CATransform", "BinaryEncoder", "EM43BinaryEncoder", "PositionEncoder", "EM43PositionalEncoder",
-           "int_to_binary_states", "binary_states_to_int"]
+__all__ = ["Em43Encoder", "BinaryEncoder"]

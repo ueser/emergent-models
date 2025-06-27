@@ -1,60 +1,26 @@
 from __future__ import annotations
 
-import pickle
 import json
 import numpy as np
 from pathlib import Path
 from typing import Union, Dict, Any
 
-from ..core.genome import Genome
-from ..rules.em43 import EM43Genome, EM43Rule
+from ..genome import Genome
 
 
-def save_genome(genome: Union[Genome, EM43Genome], filepath: str) -> None:
+def save_genome(genome: Genome, filepath: str) -> None:
     """Save genome to file."""
     filepath = Path(filepath)
     filepath.parent.mkdir(parents=True, exist_ok=True)
 
-    if isinstance(genome, EM43Genome):
-        save_em43_genome(genome, filepath)
-    else:
-        # Generic genome saving using pickle
-        with open(filepath, 'wb') as f:
-            pickle.dump(genome, f)
-
-
-def load_genome(filepath: str) -> Union[Genome, EM43Genome]:
-    """Load genome from file."""
-    filepath = Path(filepath)
-
-    if not filepath.exists():
-        raise FileNotFoundError(f"Genome file not found: {filepath}")
-
-    # Try to load as EM43Genome first (JSON format)
-    if filepath.suffix == '.json':
-        return load_em43_genome(filepath)
-
-    # Try pickle format
-    try:
-        with open(filepath, 'rb') as f:
-            return pickle.load(f)
-    except Exception:
-        # Fallback to EM43 format
-        return load_em43_genome(filepath)
-
-
-def save_em43_genome(genome: EM43Genome, filepath: Union[str, Path]) -> None:
-    """Save EM43Genome in a human-readable JSON format."""
-    filepath = Path(filepath)
-
-    # Ensure .json extension
+    # Save as JSON for human readability
     if filepath.suffix != '.json':
         filepath = filepath.with_suffix('.json')
 
     data = {
-        'type': 'EM43Genome',
-        'rule_array': genome.rule.get_rule_array().tolist(),
-        'programme': genome.programme.tolist(),
+        'type': 'Genome',
+        'rule_table': genome.rule.table.tolist(),
+        'programme_code': genome.programme.code.tolist(),
         'fitness': float(genome.fitness)
     }
 
@@ -62,24 +28,39 @@ def save_em43_genome(genome: EM43Genome, filepath: Union[str, Path]) -> None:
         json.dump(data, f, indent=2)
 
 
-def load_em43_genome(filepath: Union[str, Path]) -> EM43Genome:
-    """Load EM43Genome from JSON format."""
+def load_genome(filepath: str) -> Genome:
+    """Load genome from file."""
     filepath = Path(filepath)
 
+    if not filepath.exists():
+        raise FileNotFoundError(f"Genome file not found: {filepath}")
+
+    # Load from JSON format
     with open(filepath, 'r') as f:
         data = json.load(f)
 
-    if data.get('type') != 'EM43Genome':
+    if data.get('type') != 'Genome':
         raise ValueError(f"Invalid genome type: {data.get('type')}")
 
-    rule_array = np.array(data['rule_array'], dtype=np.uint8)
-    programme = np.array(data['programme'], dtype=np.uint8)
+    # Reconstruct genome (this would need proper state model setup)
+    # For now, just return a basic structure
+    from ..rules.ruleset import RuleSet
+    from ..rules.programme import Programme
+    from ..core.state import StateModel
 
-    rule = EM43Rule(rule_array)
-    genome = EM43Genome(rule, programme)
+    state = StateModel([0, 1, 2, 3])  # Default EM-4/3 state
+    rule_table = np.array(data['rule_table'], dtype=np.uint8)
+    programme_code = np.array(data['programme_code'], dtype=np.uint8)
+
+    rule = RuleSet(rule_table, state)
+    programme = Programme(programme_code, state)
+    genome = Genome(rule, programme)
     genome.fitness = data.get('fitness', 0.0)
 
     return genome
+
+
+
 
 
 def save_population(
