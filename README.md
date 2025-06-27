@@ -1,7 +1,7 @@
 # Emergent Models
 
 A PyTorch-like library for training cellular automata and emergent computational models.
-
+(Heavily inspired by Giacomo Bocchese (https://github.com/BoccheseGiacomo/Emergent-Models/tree/main)
 
 ## Overview
 
